@@ -1,11 +1,15 @@
 # This is a sample Python script.
 import os
+from tempfile import NamedTemporaryFile
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import guidance
 import re
 import difflib
+import logging
+
+logger=logging.getLogger('mypygpt')
 
 DEFAULT_MODEL = "gpt-3.5-turbo-16k"
 
@@ -53,17 +57,16 @@ def parse_line(line):
     #    match = re.match(pattern, line)
 
     if match:
-        filename = match.group(1)
         linenumber = match.group(2)
         error_type = match.group(3)
         message = match.group(4)
         sub_type = match.group(5)
-        return {"Line Number": linenumber, "Error Type": error_type, "Message": message, "Sub": sub_type}
+        return {"Line Number": linenumber, "Error Type": error_type, "Message": message, "Category": sub_type}
     else:
-        print("No match found.", line)
+        logger.debug(("No match found.", line))
 
 def guide_for_errors(args):
-    guidance.llm = guidance.llms.OpenAI(DEFAULT_MODEL, api_key=os.environ['OPEN_AI_KEY'])
+    guidance.llm = guidance.llms.OpenAI(args.model, api_key=os.environ['OPEN_AI_KEY'])
 
     return  guidance('''
 {{#system~}}
@@ -129,21 +132,16 @@ def generate_diff(original_content, new_content,path):
             else:
                 yield line
 
-    diffres =difflib.unified_diff(original_content.split('\n'), new_content.split('\n'), fromfile=path, tofile=path+"b")
+    diffres =list(difflib.unified_diff(original_content.split('\n'), new_content.split('\n'), fromfile=path, tofile=path+"b"))
     return '\n'.join(color_diff(diffres)),'\n'.join(diffres)
 
 def main(args):
-    out=run_mypy(args.file, args.mypy_args, args.mypy_path, args.proj_path)
-    print(out)
+    logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    logger.info("mypy output:")
 
-    errors = [parse_line(z) for z in out.split('\n')]
-    errors =list(filter(lambda x:x,errors))
-    if args.max_errors:
-        errors = errors[:args.max_errors]
-    if args.error_categories:
-        errors = [z for z in errors if z['Category'] in args.error_categories.split(',')]
+    errors = get_errors_from_mypy(args)
     if len(errors)==0:
-        print('no errors')
+        logger.info('no errors')
         return
 
     err_guide=guide_for_errors(args)
@@ -151,37 +149,61 @@ def main(args):
 
     err_res = err_guide(filename=args.file, file=original_content, errors=errors)
 
-    print('suggested fixes:')
-    print('\n'.join(err_res['fix']))
+    logger.info('suggested fixes:')
+    logger.info('\n'.join(err_res['fix']))
     fix_guide=guide_for_fixes(args)
     fix_res=fix_guide(filename=args.file, file=original_content, errors=errors, fixes=err_res['fix'])
-    if 'fixedfile' in fix_res:
-        fixed = fix_res['fixedfile']
-        try:
-            new_content=fixed[fixed.index('```python') + 9:fixed.rindex('```')]
-        except:
-            print('failed parsing resp')
-            if len(fixed)>0.5*len(original_content):
-                new_content=fixed
-            else:
-                print(fix_res['fixedfile'])
-                print('cant continue')
-                return
-        colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
-        print(colored_diff)
-        if args.store_file:
-            open(args.new_file_path, 'wt').write(new_content)
-        if args.store_diff:
-            open(args.diff_file_path, 'wt').write(diff)
+    if not 'fixedfile' in fix_res:
+        logger.error('no fixed file')
+        return
+    fixed = fix_res['fixedfile']
+    logger.debug(f'fixed file: {fixed}')
+    try:
+        new_content=fixed[fixed.index('```python') + 9:fixed.rindex('```')]
+    except:
+        logger.warn('failed parsing resp')
+        if len(fixed)>0.5*len(original_content):
+            new_content=fixed
+        else:
+            logger.error('cant continue')
+            return
+    colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
 
-        if not args.dont_ask:
-            print("do you want to override the file? (y/n)")
-            if input() == 'y':
-                open(args.file, 'wt').write(new_content)
-                print('situation after applying the fixes:')
-                if not args.dont_recheck:
-                    main(args)
+    if args.store_file:
+        open(args.new_file_path, 'wt').write(new_content)
+    if args.store_diff:
+        open(args.diff_file_path, 'wt').write(diff)
 
+
+    with NamedTemporaryFile(mode='w', delete=False) as f:
+        f.write(new_content)
+        logger.info('output from mypy after applying the fixes:')
+        errors=get_errors_from_mypy(args,override_file=f.name)
+    print(colored_diff)
+    update=False 
+    
+    if not args.dont_ask:
+        print("do you want to override the file? (y/n)")
+        if input() == 'y':
+            update=True 
+
+    if (len(errors) == 0 and args.auto_update)  or update:
+        open(args.file, 'wt').write(new_content)
+        if not args.dont_recheck and len(errors) >0 :
+            main(args)
+
+
+def get_errors_from_mypy(args,override_file=None):
+
+    out = run_mypy(args.file if override_file is None else override_file, args.mypy_args, args.mypy_path, args.proj_path)
+    logger.info(out)
+    errors = [parse_line(z) for z in out.split('\n')]
+    errors = list(filter(lambda x: x, errors))
+    if args.max_errors:
+        errors = errors[:args.max_errors]
+    if args.error_categories:
+        errors = [z for z in errors if z['Category'] in args.error_categories.split(',')]
+    return errors
 
 
 if __name__ == '__main__':
@@ -199,11 +221,14 @@ if __name__ == '__main__':
     parser.add_argument('--store_file', action='store_true',default=False, help='Store new content in file')
     parser.add_argument('--store_diff', action='store_true',default=False, help='Store diff in a file')
 
-    parser.add_argument('--dont_ask', action='store_true', default=False, help='Store new content in file')
+    parser.add_argument('--dont-ask', action='store_true', default=False, help='Dont ask if to apply to changes. Useful for generting diff')
     parser.add_argument('--model', default=DEFAULT_MODEL,help ='Openai model to use')
     parser.add_argument('--max_tokens_per_fix', default=DEFAULT_TOKENS_PER_FIX, help='tokens to use for fixes')
     parser.add_argument('--max_tokens_for_file', default=DEFAULT_TOKENS,  help='tokens to use for file')
     parser.add_argument('--dont_recheck', action='store_true', default=False, help='Dont recheck the file after the fixes')
+    parser.add_argument('--debug', action='store_true', default=False, help='debug log level ')
+    parser.add_argument('--auto-update', action='store_true', default=False, help='auto update if no errors ')
+
     # Parse the arguments
     args = parser.parse_args()
     main(args)
