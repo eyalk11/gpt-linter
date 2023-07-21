@@ -12,11 +12,10 @@ DEFAULT_MODEL = "gpt-3.5-turbo-16k"
 MYPYARGS = '--disallow-untyped-defs'
 
 older_path = r"c:\gitproj\Auto-GPT"
-
+DEFAULT_TOKENS =3600
 import subprocess
 
 import argparse
-import subprocess
 def run_mypy(file, mypy_args, mypy_path,proj_path):
     # Construct the mypy command
     command = [mypy_path] +mypy_args.split() + [file]
@@ -26,7 +25,6 @@ def run_mypy(file, mypy_args, mypy_path,proj_path):
 
     # Decode the output from bytes to string
     output = result.stdout
-    import re
 
     # 7-bit C1 ANSI sequences
     ansi_escape = re.compile(r'''
@@ -49,9 +47,9 @@ def parse_line(line):
     # Extracting message, type, and line number using regular expressions
     pattern = r'(.+):(\d+): (\w+): (.+) \[(.*)\]'
     match = re.match(pattern, line)
-    if not match:
-        pattern = r'(.+):(\d+): (\w+): (.+)()'
-        match = re.match(pattern, line)
+    #if not match:
+    #    pattern = r'(.+):(\d+): (\w+): (.+)()'
+    #    match = re.match(pattern, line)
 
     if match:
         filename = match.group(1)
@@ -63,28 +61,42 @@ def parse_line(line):
     else:
         print("No match found.", line)
 
-def return_guide():
+def return_guide(args):
     guidance.llm = guidance.llms.OpenAI(DEFAULT_MODEL, api_key=os.environ['OPEN_AI_KEY'])
 
     return  guidance('''
-    {{#system~}}
-    You are a helpful assistant. You will get a file and a list of errors. You need to come up with a fix for those errors.
+{{#system~}}
+    You are a helpful assistant. You will get a file and a list of issues. You need to come up with a fix for those issues.
     The fixes should be meticulously phrased. 
     {{~/system}}
     {{#user~}}
-    You are given file with errors {{filename}}: .
+
+
+You are given file with issues {{filename}}: .
         {{file}}.
-    These are the errors: 
+    These are the issues: 
         {{#each errors}}- {{this}}
         {{/each~}}
 
-    Please suggest fixes to solve those errors.
     {{~/user}}
+
     {{~! generate potential options ~}} 
     {{#assistant~}}
-    {{gen 'fixes' temperature=0.7 max_tokens=3600}}
+    {{gen 'fixes' temperature=0.7 max_tokens=%d}}
     {{~/assistant}}
-    ''', log=True)
+    {{#system~}}
+    You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. Reply only with the full file content after the changes are applied. 
+    {{~/system}}
+    {{#user~}}
+    This is the file {{file}}
+    Those are the fixes
+    {{fixes}}
+    {{~/user}}
+    {{#assistant~}}
+    {{gen 'fixedfile' temperature=0.7 max_tokens=%d}}
+    {{~/assistant}}
+    
+    ''' % (args.max_fixes_tokens,args.max_file_tokens), log=True)
 
 
 def generate_diff(original_content, new_content,path):
@@ -126,10 +138,12 @@ def main(args):
         print('no errors')
         return
 
-    guide=return_guide()
+    guide=return_guide(args)
     original_content=open(args.file, 'rt').read()
 
     zz = guide(filename=args.file, file=original_content, errors=errors)
+    print('suggested fixes:')
+    print(zz['fixes'])
     if 'fixedfile' in zz:
         try:
             fixed = zz['fixedfile']
@@ -166,8 +180,12 @@ if __name__ == '__main__':
     parser.add_argument('--diff_file', action='store',default='suggestion.diff', help='Store diff in file')
     parser.add_argument('--new_file_path', action='store',default='suggestion.py', help='Store new content in file')
     parser.add_argument('--store_file', action='store_true',default=False, help='Store new content in file')
+    parser.add_argument('--store_diff', action='store_true',default=False, help='Store diff in a file')
+
     parser.add_argument('--dont_ask', action='store_true', default=False, help='Store new content in file')
     parser.add_argument('--model', default=DEFAULT_MODEL,help ='Openai model to use')
+    parser.add_argument('--max_fixes_tokens', default=DEFAULT_TOKENS, help='tokens to use for fixes')
+    parser.add_argument('--max_file_tokens', default=DEFAULT_TOKENS,  help='tokens to use for file')
     # Parse the arguments
     args = parser.parse_args()
     main(args)
