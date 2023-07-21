@@ -136,7 +136,7 @@ def generate_diff(original_content, new_content,path):
     diffres =list(difflib.unified_diff(original_content.split('\n'), new_content.split('\n'), fromfile=path, tofile=path+"b"))
     return '\n'.join(color_diff(diffres)),'\n'.join(diffres)
 
-def main(args):
+def main_internal(args):
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
     if 'OPEN_AI_KEY' not in os.environ:
         logger.error('OPEN_AI_KEY not set')
@@ -195,7 +195,7 @@ def main(args):
     if (len(errors) == 0 and args.auto_update)  or update:
         open(args.file, 'wt').write(new_content)
         if not args.dont_recheck and len(errors) >0 :
-            main(args)
+            main_internal(args)
 
 
 def get_errors_from_mypy(args,override_file=None):
@@ -220,8 +220,7 @@ def get_errors_from_mypy(args,override_file=None):
         errors = [z for z in errors if z['Category'] in args.error_categories.split(',')]
     return errors
 
-
-if __name__ == '__main__':
+def main():
     # Create the argument parser
     parser = argparse.ArgumentParser(description='Run mypy on a Python file')
     # Add the arguments
@@ -229,24 +228,30 @@ if __name__ == '__main__':
     parser.add_argument('mypy_args', nargs='?', default=MYPYARGS, help='Additional options for mypy')
     parser.add_argument('--mypy_path', default='mypy', help='Path to mypy executable (default: "mypy")')
     parser.add_argument('--error_categories', action='store', help='Type of errors to process')
-    parser.add_argument('--max_errors', action='store',type=int,default=10, help='Max number of errors to process')
+    parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process')
     parser.add_argument('--proj-path', default='.', help='Path to project')
-    parser.add_argument('--diff_file', action='store',default='suggestion.diff', help='Store diff in file')
-    parser.add_argument('--new_file_path', action='store',default='suggestion.py', help='Store new content in file')
-    parser.add_argument('--store_file', action='store_true',default=False, help='Store new content in file')
-    parser.add_argument('--store_diff', action='store_true',default=False, help='Store diff in a file')
+    parser.add_argument('--diff_file', action='store', default='suggestion.diff', help='Store diff in file')
+    parser.add_argument('--new_file_path', action='store', default='suggestion.py', help='Store new content in file')
+    parser.add_argument('--store_file', action='store_true', default=False, help='Store new content in file')
+    parser.add_argument('--store_diff', action='store_true', default=False, help='Store diff in a file')
 
-    parser.add_argument('--dont-ask', action='store_true', default=False, help='Dont ask if to apply to changes. Useful for generting diff')
-    parser.add_argument('--model', default=DEFAULT_MODEL,help ='Openai model to use')
+    parser.add_argument('--dont-ask', action='store_true', default=False,
+                        help='Dont ask if to apply to changes. Useful for generting diff')
+    parser.add_argument('--model', default=DEFAULT_MODEL, help='Openai model to use')
     parser.add_argument('--max_tokens_per_fix', default=DEFAULT_TOKENS_PER_FIX, help='tokens to use for fixes')
-    parser.add_argument('--max_tokens_for_file', default=DEFAULT_TOKENS,  help='tokens to use for file')
-    parser.add_argument('--dont_recheck', action='store_true', default=False, help='Dont recheck the file after the fixes')
+    parser.add_argument('--max_tokens_for_file', default=DEFAULT_TOKENS, help='tokens to use for file')
+    parser.add_argument('--dont_recheck', action='store_true', default=False,
+                        help='Dont recheck the file after the fixes')
     parser.add_argument('--debug', action='store_true', default=False, help='debug log level ')
     parser.add_argument('--auto-update', action='store_true', default=False, help='auto update if no errors ')
     parser.add_argument('--dont-print-fixes', action='store_true', default=False, help='dont print fixes ')
 
     # Parse the arguments
     args = parser.parse_args()
-    main(args)
+    main_internal(args)
+
+
+if __name__ == '__main__':
+    main()
 
 
