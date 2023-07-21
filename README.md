@@ -9,44 +9,25 @@ pip install  mypy-gpt
 ```
 
 # Usage
+See 
 ```
-usage: python -m mypy_gpt [-h] [--mypy_path MYPY_PATH] [--error_categories ERROR_CATEGORIES] [--max_errors MAX_ERRORS] [--proj-path PROJ_PATH] [--diff_file DIFF_FILE] [--new_file_path NEW_FILE_PATH]
-               [--store_file] [--store_diff] [--dont_ask] [--model MODEL] [--max_fixes_tokens MAX_FIXES_TOKENS] [--max_file_tokens MAX_FILE_TOKENS]
-               file [mypy_args]
+python -m mypy_gpt --help 
+```
 
-Run mypy on a Python file
-
-positional arguments:
-  file                  Python file to run mypy on
-  mypy_args             Additional options for mypy
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --mypy_path MYPY_PATH
-                        Path to mypy executable (default: "mypy")
-  --error_categories ERROR_CATEGORIES
-                        Type of errors to process
-  --max_errors MAX_ERRORS
-                        Max number of errors to process
-  --proj-path PROJ_PATH
-                        Path to project
-  --diff_file DIFF_FILE
-                        Store diff in file
-  --new_file_path NEW_FILE_PATH
-                        Store new content in file
-  --store_file          Store new content in file
-  --store_diff          Store diff in a file
-  --dont_ask            Store new content in file
-  --model MODEL         Openai model to use
-  --max_fixes_tokens MAX_FIXES_TOKENS
-                        tokens to use for fixes
-  --max_file_tokens MAX_FILE_TOKENS
-                        tokens to use for file
-
+A typical usage is 
+```
+python -m mypy_gpt --proj-path [PROJECT] [PYFILE]
 ```
 (see main.py for a generally more updated version of usage)
 
-For example 
+If you want it to generate diff file, use: 
+
+```
+python -m mypy_gpt --proj-path [PROJECT] [PYFILE] --dont-ask > myfile.diff
+```
+
+
+For example: 
 
 ![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/6b07e20f-2c9b-411b-b294-3f47a639c4d8)
 
