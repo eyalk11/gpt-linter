@@ -1,7 +1,6 @@
 
 import os
 import xml
-from tempfile import NamedTemporaryFile
 import pandas
 import guidance
 import re
@@ -9,8 +8,8 @@ import difflib
 import logging
 import xml.etree.ElementTree as ET
 
-DEFAULTS_DIFF_FILE="suggestion.diff"
 logger=logging.getLogger('mypygpt')
+logger.propagate=False 
 
 DEFAULT_MODEL = "gpt-3.5-turbo-16k"
 
@@ -24,6 +23,7 @@ import argparse
 def run_mypy(file, mypy_args, mypy_path,proj_path):
     # Construct the mypy command
     command = [mypy_path] +mypy_args.split() + [file]
+    logger.debug("Running mypy command: %s", command)
     # Run mypy command and capture the output
     result = subprocess.run(command, capture_output=True, text=True,cwd=os.path.abspath(proj_path))
     # Print the output
@@ -88,7 +88,7 @@ A list of issues will be given
     {{gen 'fix' list_append=True temperature=0.7 max_tokens=%d}}
     {{~/assistant}}
     
-{{/each~}}''' % (args.max_tokens_per_fix), log=True)
+{{/each~}}''' % (args.max_tokens_per_fix), log=True,caching=False)
 
 def guide_for_fixes(args): 
     return guidance('''
@@ -96,7 +96,7 @@ def guide_for_fixes(args):
         You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. 
         Reply only with xml that has the following format:  
         ```xml
-        <pythonfile>the full file content after the changes are applied</pythonfile>
+        <pythonfile>the updated file content after the corrections are made</pythonfile>
         ```
         {{~/system}}
         {{#user~}}
@@ -111,7 +111,7 @@ def guide_for_fixes(args):
         {{#assistant~}}
         {{gen 'fixedfile' temperature=0.2 max_tokens=%d}}
         {{~/assistant~}}
-    ''' % (args.max_tokens_for_file),log=True )
+    ''' % (args.max_tokens_for_file),log=True ,caching=False)
 
 
 def generate_diff(original_content, new_content,path):
@@ -141,9 +141,13 @@ def generate_diff(original_content, new_content,path):
     return os.linesep.join(color_diff(diffres)),os.linesep.join(diffres)
 
 def main_internal(args):
-    if args.diff_file != DEFAULTS_DIFF_FILE:
-        args.store_diff = True
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    log_format = "%(levelname)s - %(message)s"
+    formatter = logging.Formatter(log_format)
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logger.handlers = [ch]
+
     if 'OPEN_AI_KEY' not in os.environ:
         logger.error('OPEN_AI_KEY not set')
         return
@@ -193,21 +197,22 @@ def main_internal(args):
 
     colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
 
-    if args.store_diff:
+    if args.diff_file:
         open(args.diff_file, 'wt').write(diff)
 
-    newfile = args.file.replace('.py', '.fixed.py') #must be in the same folder sadly.
-    open(newfile, 'wt').write(new_content)
+    if not args.dont_recheck:
+        newfile = args.file.replace('.py', '.fixed.py') #must be in the same folder sadly.
+        open(newfile, 'wt').write(new_content)
 
-    logger.info('output from mypy after applying the fixes:')
-    try:
-        errors=get_errors_from_mypy(args,override_file=newfile)
-    finally:
-        if not args.store_fixed_file:
-            try:
-                os.remove(newfile)
-            except:
-                logger.error('could not remove file %s' % newfile)
+        logger.info('output from mypy after applying the fixes:')
+        try:
+            errors=get_errors_from_mypy(args,override_file=newfile)
+        finally:
+            if not args.store_fixed_file:
+                try:
+                    os.remove(newfile)
+                except:
+                    logger.error('could not remove file %s' % newfile)
     print(colored_diff)
     update=False 
     
@@ -250,13 +255,12 @@ def main():
     # Add the arguments
     parser.add_argument('file', help='Python file to run mypy on')
     parser.add_argument('mypy_args', nargs='?', default=MYPYARGS, help='Additional options for mypy')
-    parser.add_argument('--mypy_path', default='mypy', help='Path to mypy executable (default: "mypy")')
+    parser.add_argument('--mypy-path', default='mypy', help='Path to mypy executable (default: "mypy")')
     parser.add_argument('--error_categories', action='store', help='Type of errors to process')
     parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process')
     parser.add_argument('--proj-path', default='.', help='Path to project')
-    parser.add_argument('--diff_file', action='store', default=DEFAULTS_DIFF_FILE, help='Store diff in file')
+    parser.add_argument('--diff-file', action='store', help='Store diff in diff file')
     parser.add_argument('--store-fixed-file', action='store_true', default=False, help='Keeps file.fixed.py')
-    parser.add_argument('--store-diff', action='store_true', default=False, help='Store diff in a file. by default suggestion.diff')
 
     parser.add_argument('--dont-ask', action='store_true', default=False,
                         help='Dont ask if to apply to changes. Useful for generting diff')
@@ -276,5 +280,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
