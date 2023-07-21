@@ -1,5 +1,7 @@
 # mypy-gpt
-Solve mypy errors using guidance and chatgpt!
+Solve mypy errors using guidance and espcially chatgpt.
+We instruct it to solve for us those nagging typing issues!
+
 # Usage
 
 ```
