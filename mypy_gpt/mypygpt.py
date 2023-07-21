@@ -9,7 +9,7 @@ import guidance
 import re
 import difflib
 import logging
-
+DEFAULTS_DIFF_FILE="suggestion.diff"
 logger=logging.getLogger('mypygpt')
 
 DEFAULT_MODEL = "gpt-3.5-turbo-16k"
@@ -20,7 +20,6 @@ older_path = r"c:\gitproj\Auto-GPT"
 DEFAULT_TOKENS =3600
 DEFAULT_TOKENS_PER_FIX =400
 import subprocess
-
 import argparse
 def run_mypy(file, mypy_args, mypy_path,proj_path):
     # Construct the mypy command
@@ -133,10 +132,12 @@ def generate_diff(original_content, new_content,path):
             else:
                 yield line
 
-    diffres =list(difflib.unified_diff(original_content.split('\n'), new_content.split('\n'), fromfile=path, tofile=path+"b"))
-    return '\n'.join(color_diff(diffres)),'\n'.join(diffres)
+    diffres =list(difflib.unified_diff(original_content.split('\n'), new_content.split('\n'), fromfile=path, tofile=path+"b",lineterm=''))
+    return os.linesep.join(color_diff(diffres)),os.linesep.join(diffres)
 
 def main_internal(args):
+    if args.diff_file != DEFAULTS_DIFF_FILE:
+        args.store_diff = True
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
     if 'OPEN_AI_KEY' not in os.environ:
         logger.error('OPEN_AI_KEY not set')
@@ -177,7 +178,7 @@ def main_internal(args):
     if args.store_file:
         open(args.new_file_path, 'wt').write(new_content)
     if args.store_diff:
-        open(args.diff_file_path, 'wt').write(diff)
+        open(args.diff_file, 'wt').write(diff)
 
 
     with NamedTemporaryFile(mode='w', delete=False) as f:
@@ -230,10 +231,10 @@ def main():
     parser.add_argument('--error_categories', action='store', help='Type of errors to process')
     parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process')
     parser.add_argument('--proj-path', default='.', help='Path to project')
-    parser.add_argument('--diff_file', action='store', default='suggestion.diff', help='Store diff in file')
+    parser.add_argument('--diff_file', action='store', default=DEFAULTS_DIFF_FILE, help='Store diff in file')
     parser.add_argument('--new_file_path', action='store', default='suggestion.py', help='Store new content in file')
     parser.add_argument('--store_file', action='store_true', default=False, help='Store new content in file')
-    parser.add_argument('--store_diff', action='store_true', default=False, help='Store diff in a file')
+    parser.add_argument('--store-diff', action='store_true', default=False, help='Store diff in a file. by default suggestion.diff')
 
     parser.add_argument('--dont-ask', action='store_true', default=False,
                         help='Dont ask if to apply to changes. Useful for generting diff')

@@ -15,7 +15,7 @@ with pathlib.Path('requirements.txt').open() as requirements_txt:
 
 setup(
     name='mypy-gpt',
-    version='1.0.3',
+    version='1.0.4',
     packages=['mypy_gpt'],
     url='https://github.com/eyalk11/mypy-gpt',
     license=' AGPL-3.0 license',
