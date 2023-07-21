@@ -57,4 +57,5 @@ python main.py --proj-path c:\gitproj\Auto-GPT  c:\gitproj\Auto-GPT\autogpt\llm\
 
 (see main.py for a generally more updated version of usage)
 
+![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/a7f785c0-dc6d-491b-a784-dfa1ceb82b4b)
 
