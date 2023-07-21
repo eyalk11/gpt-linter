@@ -4,17 +4,13 @@ It runs mypy on targeted file and then uses gpt to try to fix the issues (espcia
 Displays a diff file for the required changes and ask you if you want to apply. 
 
 # Installation
-Just do clone and
 ```
-pip install -r requirments.txt
+pip install  mypy-gpt
 ```
-It only really depends on [guidance](https://github.com/microsoft/guidance)
-
-needs `OPEN_AI_KEY` as enviornment varible.
 
 # Usage
 ```
-usage: main.py [-h] [--mypy_path MYPY_PATH] [--error_categories ERROR_CATEGORIES] [--max_errors MAX_ERRORS] [--proj-path PROJ_PATH] [--diff_file DIFF_FILE] [--new_file_path NEW_FILE_PATH]
+usage: python -m mypy_gpt [-h] [--mypy_path MYPY_PATH] [--error_categories ERROR_CATEGORIES] [--max_errors MAX_ERRORS] [--proj-path PROJ_PATH] [--diff_file DIFF_FILE] [--new_file_path NEW_FILE_PATH]
                [--store_file] [--store_diff] [--dont_ask] [--model MODEL] [--max_fixes_tokens MAX_FIXES_TOKENS] [--max_file_tokens MAX_FILE_TOKENS]
                file [mypy_args]
 
