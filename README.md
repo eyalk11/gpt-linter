@@ -53,5 +53,6 @@ optional arguments:
 For example 
 
 
-![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/a7f785c0-dc6d-491b-a784-dfa1ceb82b4b)
+![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/0469bd1a-fde5-4b9c-991f-33099ee0bf61)
+
 
