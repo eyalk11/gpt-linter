@@ -1,14 +1,14 @@
-# This is a sample Python script.
-import os
-from tempfile import NamedTemporaryFile
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import os
+import xml
+from tempfile import NamedTemporaryFile
 import pandas
 import guidance
 import re
 import difflib
 import logging
+import xml.etree.ElementTree as ET
+
 DEFAULTS_DIFF_FILE="suggestion.diff"
 logger=logging.getLogger('mypygpt')
 
@@ -52,9 +52,9 @@ def parse_line(line):
     # Extracting message, type, and line number using regular expressions
     pattern = r'(.+):(\d+): (\w+): (.+) \[(.*)\]'
     match = re.match(pattern, line)
-    #if not match:
-    #    pattern = r'(.+):(\d+): (\w+): (.+)()'
-    #    match = re.match(pattern, line)
+    if not match:
+        pattern = r'(.+):(\d+): (\w+): (.+)()'
+        match = re.match(pattern, line)
 
     if match:
         linenumber = match.group(2)
@@ -93,10 +93,15 @@ A list of issues will be given
 def guide_for_fixes(args): 
     return guidance('''
         {{#system~}}
-        You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. Reply only with the full file content after the changes are applied. 
+        You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. 
+        Reply only with xml that has the following format:  
+        ```xml
+        <pythonfile>the full file content after the changes are applied</pythonfile>
+        ```
         {{~/system}}
         {{#user~}}
-        This is the file {{file}}
+        This is the file:
+        {{file}}
         Those are the fixes
         {{#each fixes}}- {{this}}
             {{/each~}}
@@ -104,7 +109,7 @@ def guide_for_fixes(args):
         {{~/user}}
 
         {{#assistant~}}
-        {{gen 'fixedfile' temperature=0.7 max_tokens=%d}}
+        {{gen 'fixedfile' temperature=0.2 max_tokens=%d}}
         {{~/assistant~}}
     ''' % (args.max_tokens_for_file),log=True )
 
@@ -145,6 +150,7 @@ def main_internal(args):
     logger.info("mypy output:")
 
     errors = get_errors_from_mypy(args)
+    logger.debug(errors)
     if len(errors)==0:
         logger.info('no errors')
         return
@@ -157,6 +163,7 @@ def main_internal(args):
     if not args.dont_print_fixes:
         logger.info('suggested fixes:')
         logger.info('\n'.join(err_res['fix']))
+
     fix_guide=guide_for_fixes(args)
     fix_res=fix_guide(filename=args.file, file=original_content, errors=errors, fixes=err_res['fix'])
     if not 'fixedfile' in fix_res:
@@ -164,27 +171,43 @@ def main_internal(args):
         return
     fixed = fix_res['fixedfile']
     logger.debug(f'fixed file: {fixed}')
+    #bb = json.loads(fix_res["fixedfile"])['pythonfile']
     try:
-        new_content=fixed[fixed.index('```python') + 9:fixed.rindex('```')]
+        new_content= fixed[fixed.index('```xml') + 6:]
+        new_content=new_content[:new_content.rindex('```')]
     except:
-        logger.warn('failed parsing resp')
         if len(fixed)>0.5*len(original_content):
             new_content=fixed
         else:
             logger.error('cant continue')
             return
+    try:
+        new_content=ET.fromstring(new_content).text #remove the pythonfile element
+    except xml.etree.ElementTree.ParseError:
+        logger.error("bad formatting")
+        logger.debug(new_content)
+        if len(fixed) > 0.5 * len(original_content):
+            logger.warn("will try anyway")
+
+
+
     colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
 
-    if args.store_file:
-        open(args.new_file_path, 'wt').write(new_content)
     if args.store_diff:
         open(args.diff_file, 'wt').write(diff)
 
+    newfile = args.file.replace('.py', '.fixed.py') #must be in the same folder sadly.
+    open(newfile, 'wt').write(new_content)
 
-    with NamedTemporaryFile(mode='w', delete=False) as f:
-        f.write(new_content)
-        logger.info('output from mypy after applying the fixes:')
-        errors=get_errors_from_mypy(args,override_file=f.name)
+    logger.info('output from mypy after applying the fixes:')
+    try:
+        errors=get_errors_from_mypy(args,override_file=newfile)
+    finally:
+        if not args.store_fixed_file:
+            try:
+                os.remove(newfile)
+            except:
+                logger.error('could not remove file %s' % newfile)
     print(colored_diff)
     update=False 
     
@@ -223,7 +246,7 @@ def get_errors_from_mypy(args,override_file=None):
 
 def main():
     # Create the argument parser
-    parser = argparse.ArgumentParser(description='Run mypy on a Python file')
+    parser = argparse.ArgumentParser(description='Run mypy on a Python file and use OpenAI GPT to fix the errors. It temporary generates file.fixed.py file to check for errors.')
     # Add the arguments
     parser.add_argument('file', help='Python file to run mypy on')
     parser.add_argument('mypy_args', nargs='?', default=MYPYARGS, help='Additional options for mypy')
@@ -232,8 +255,7 @@ def main():
     parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process')
     parser.add_argument('--proj-path', default='.', help='Path to project')
     parser.add_argument('--diff_file', action='store', default=DEFAULTS_DIFF_FILE, help='Store diff in file')
-    parser.add_argument('--new_file_path', action='store', default='suggestion.py', help='Store new content in file')
-    parser.add_argument('--store_file', action='store_true', default=False, help='Store new content in file')
+    parser.add_argument('--store-fixed-file', action='store_true', default=False, help='Keeps file.fixed.py')
     parser.add_argument('--store-diff', action='store_true', default=False, help='Store diff in a file. by default suggestion.diff')
 
     parser.add_argument('--dont-ask', action='store_true', default=False,

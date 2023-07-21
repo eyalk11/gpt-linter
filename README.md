@@ -1,12 +1,30 @@
 # mypy-gpt
-Solve mypy errors using [guidance](https://github.com/microsoft/guidance) and espcially chatgpt.
+Solve mypy errors using [guidance](https://github.com/microsoft/guidance) and gpt API.
 It runs mypy on targeted file and then uses gpt to try to fix the issues (espcially good for minor nagging issues).
 Displays a diff file for the required changes and ask you if you want to apply. 
 
 # Installation
 ```
 pip install  mypy-gpt
+
 ```
+it is generally better to install the master 
+
+```
+pip install git+https://github.com/eyalk11/mypy-gpt.git
+```
+
+You will need openai access token for it. 
+
+In powershell:
+```
+$env:OPEN_AI_KEY = "sk-XXX"
+```
+Or 
+```
+OPEN_AI_KEY=sk-XXX python -m mypy_gpt ...
+```
+
 
 # Usage
 See 
@@ -25,12 +43,13 @@ and reruns main if not all issues were resolved.
 If you want it to generate diff file, use: 
 
 ```
-python -m mypy_gpt --proj-path [PROJECT] [PYFILE] --dont-ask > myfile.diff (if you don't mind colors)
+python -m mypy_gpt --proj-path [PROJECT] --dont-ask  [PYFILE] > myfile.diff (if you don't mind colors)
 ```
 or 
 ```
-python -m mypy_gpt --proj-path [PROJECT] [PYFILE] --store-diff myfile.diff --dont-ask
+python -m mypy_gpt --store-diff --proj-path [PROJECT] [PYFILE] --dont-ask
 ```
+(it stores by default suggestion.diff)
 
 
 
