@@ -54,8 +54,6 @@ python -m mypy_gpt --store-diff --proj-path [PROJECT] [PYFILE] --dont-ask
 
 
 For example: 
-
-![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/6b07e20f-2c9b-411b-b294-3f47a639c4d8)
-
+![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/174600e7-de6b-4148-83d6-c417add9ed92)
 
 
