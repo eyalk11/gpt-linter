@@ -1,6 +1,6 @@
 # mypy-gpt
 Solve mypy errors using [guidance](https://github.com/microsoft/guidance) and espcially chatgpt.
-We instruct it to solve for us those nagging typing issues!
+It runs mypy on targeted file and then uses gpt to try to fix the issues (espcially good for minor nagging issues).
 
 # Installation
 Just do clone and
