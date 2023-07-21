@@ -68,7 +68,8 @@ def return_guide():
 
     return  guidance('''
     {{#system~}}
-    You are a helpful assistant. You will get a file and a list of errors. Your goal is to come up with a fix to these errors.
+    You are a helpful assistant. You will get a file and a list of errors. You need to come up with a fix for those errors.
+    The fixes should be meticulously phrased. 
     {{~/system}}
     {{#user~}}
     You are given file with errors {{filename}}: .
@@ -77,11 +78,11 @@ def return_guide():
         {{#each errors}}- {{this}}
         {{/each~}}
 
-    Please suggest code to solve those errors. Please reply with the fixed file
+    Please suggest fixes to solve those errors.
     {{~/user}}
     {{~! generate potential options ~}} 
     {{#assistant~}}
-    {{gen 'fixedfile' temperature=0.7 max_tokens=3600}}
+    {{gen 'fixes' temperature=0.7 max_tokens=3600}}
     {{~/assistant}}
     ''', log=True)
 
@@ -104,6 +105,8 @@ def generate_diff(original_content, new_content,path):
                 yield Fore.RED + line + Fore.RESET
             elif line.startswith('^'):
                 yield Fore.BLUE + line + Fore.RESET
+            elif line.startswith('@@'):
+                yield Fore.BLUE + line[:line.rindex('@@')+2] + Fore.RESET
             else:
                 yield line
 
@@ -112,6 +115,7 @@ def generate_diff(original_content, new_content,path):
 
 def main(args):
     out=run_mypy(args.file, args.mypy_args, args.mypy_path, args.proj_path)
+    print(out)
 
     errors = [parse_line(z) for z in out.split('\r\n')]
     if args.max_errors:
@@ -134,6 +138,7 @@ def main(args):
             print('failed parsing resp')
             import traceback
             traceback.print_exc()
+            print(fixed)
             return
         colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
         print(colored_diff)
