@@ -18,7 +18,6 @@ A typical usage is
 ```
 python -m mypy_gpt --proj-path [PROJECT] [PYFILE]
 ```
-(see main.py for a generally more updated version of usage)
 
 If you want it to generate diff file, use: 
 
