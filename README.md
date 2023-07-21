@@ -48,6 +48,12 @@ optional arguments:
 
 ```
 
-(see main.py for an updated version)
+For example 
+
+```
+python main.py --proj-path c:\gitproj\AutoGPT  c:\gitproj\Auto-GPT\autogpt\llm\api_manager.py
+```
+
+(see main.py for a generally more updated version of usage)
 
 
