@@ -13,6 +13,7 @@ MYPYARGS = '--disallow-untyped-defs'
 
 older_path = r"c:\gitproj\Auto-GPT"
 DEFAULT_TOKENS =3600
+DEFAULT_TOKENS_PER_FIX =400
 import subprocess
 
 import argparse
@@ -61,42 +62,48 @@ def parse_line(line):
     else:
         print("No match found.", line)
 
-def return_guide(args):
+def guide_for_errors(args):
     guidance.llm = guidance.llms.OpenAI(DEFAULT_MODEL, api_key=os.environ['OPEN_AI_KEY'])
 
     return  guidance('''
 {{#system~}}
-    You are a helpful assistant. You will get a file and a list of issues. You need to come up with a fix for those issues.
+    You are a helpful assistant. You will be given a file and a list of issues. Some of them are minor issues like mismatch types.  You need to come up with fixes for all issues, evem the minor ones.
     The fixes should be meticulously phrased. 
     {{~/system}}
-    {{#user~}}
-
-
-You are given file with issues {{filename}}: .
+{{~#user}}
+Given this {{filename}}: .
         {{file}}.
-    These are the issues: 
-        {{#each errors}}- {{this}}
-        {{/each~}}
+A list of issues will be given
+{{~/user}}
 
-    {{~/user}}
-
-    {{~! generate potential options ~}} 
-    {{#assistant~}}
-    {{gen 'fixes' temperature=0.7 max_tokens=%d}}
-    {{~/assistant}}
-    {{#system~}}
-    You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. Reply only with the full file content after the changes are applied. 
-    {{~/system}}
-    {{#user~}}
-    This is the file {{file}}
-    Those are the fixes
-    {{fixes}}
-    {{~/user}}
-    {{#assistant~}}
-    {{gen 'fixedfile' temperature=0.7 max_tokens=%d}}
+{{#each errors}}
+  {{~#user}}
+  What is the fix for this issue on {{filename}}?
+          {{this}}
+  {{~/user}}
+  {{#assistant~}}
+    {{gen 'fix' list_append=True temperature=0.7 max_tokens=%d}}
     {{~/assistant}}
     
-    ''' % (args.max_fixes_tokens,args.max_file_tokens), log=True)
+{{/each~}}''' % (args.max_tokens_per_fix), log=True)
+
+def guide_for_fixes(args): 
+    return guidance('''
+        {{#system~}}
+        You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. Reply only with the full file content after the changes are applied. 
+        {{~/system}}
+        {{#user~}}
+        This is the file {{file}}
+        Those are the fixes
+        {{#each fixes}}- {{this}}
+            {{/each~}}
+
+        {{~/user}}
+
+        {{#assistant~}}
+        {{gen 'fixedfile' temperature=0.7 max_tokens=%d}}
+        {{~/assistant~}}
+    ''' % (args.max_tokens_for_file),log=True )
 
 
 def generate_diff(original_content, new_content,path):
@@ -129,7 +136,8 @@ def main(args):
     out=run_mypy(args.file, args.mypy_args, args.mypy_path, args.proj_path)
     print(out)
 
-    errors = [parse_line(z) for z in out.split('\r\n')]
+    errors = [parse_line(z) for z in out.split('\n')]
+    errors =list(filter(lambda x:x,errors))
     if args.max_errors:
         errors = errors[:args.max_errors]
     if args.error_categories:
@@ -138,22 +146,27 @@ def main(args):
         print('no errors')
         return
 
-    guide=return_guide(args)
+    err_guide=guide_for_errors(args)
     original_content=open(args.file, 'rt').read()
 
-    zz = guide(filename=args.file, file=original_content, errors=errors)
+    err_res = err_guide(filename=args.file, file=original_content, errors=errors)
+
     print('suggested fixes:')
-    print(zz['fixes'])
-    if 'fixedfile' in zz:
+    print('\n'.join(err_res['fix']))
+    fix_guide=guide_for_fixes(args)
+    fix_res=fix_guide(filename=args.file, file=original_content, errors=errors, fixes=err_res['fix'])
+    if 'fixedfile' in fix_res:
+        fixed = fix_res['fixedfile']
         try:
-            fixed = zz['fixedfile']
             new_content=fixed[fixed.index('```python') + 9:fixed.rindex('```')]
         except:
             print('failed parsing resp')
-            import traceback
-            traceback.print_exc()
-            print(fixed)
-            return
+            if len(fixed)>0.5*len(original_content):
+                new_content=fixed
+            else:
+                print(fix_res['fixedfile'])
+                print('cant continue')
+                return
         colored_diff,diff= generate_diff(original_content, new_content,args.file.replace("\\",'/'))
         print(colored_diff)
         if args.store_file:
@@ -165,6 +178,10 @@ def main(args):
             print("do you want to override the file? (y/n)")
             if input() == 'y':
                 open(args.file, 'wt').write(new_content)
+                print('situation after applying the fixes:')
+                if not args.dont_recheck:
+                    main(args)
+
 
 
 if __name__ == '__main__':
@@ -184,8 +201,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--dont_ask', action='store_true', default=False, help='Store new content in file')
     parser.add_argument('--model', default=DEFAULT_MODEL,help ='Openai model to use')
-    parser.add_argument('--max_fixes_tokens', default=DEFAULT_TOKENS, help='tokens to use for fixes')
-    parser.add_argument('--max_file_tokens', default=DEFAULT_TOKENS,  help='tokens to use for file')
+    parser.add_argument('--max_tokens_per_fix', default=DEFAULT_TOKENS_PER_FIX, help='tokens to use for fixes')
+    parser.add_argument('--max_tokens_for_file', default=DEFAULT_TOKENS,  help='tokens to use for file')
+    parser.add_argument('--dont_recheck', action='store_true', default=False, help='Dont recheck the file after the fixes')
     # Parse the arguments
     args = parser.parse_args()
     main(args)
