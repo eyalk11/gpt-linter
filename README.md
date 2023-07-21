@@ -48,7 +48,7 @@ optional arguments:
 
 For example 
 
+![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/6b07e20f-2c9b-411b-b294-3f47a639c4d8)
 
-![image](https://github.com/eyalk11/mypy-gpt/assets/72234965/0469bd1a-fde5-4b9c-991f-33099ee0bf61)
 
 
