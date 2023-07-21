@@ -4,6 +4,7 @@ from tempfile import NamedTemporaryFile
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import pandas
 import guidance
 import re
 import difflib
@@ -137,6 +138,9 @@ def generate_diff(original_content, new_content,path):
 
 def main(args):
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    if 'OPEN_AI_KEY' not in os.environ:
+        logger.error('OPEN_AI_KEY not set')
+        return
     logger.info("mypy output:")
 
     errors = get_errors_from_mypy(args)
@@ -149,8 +153,9 @@ def main(args):
 
     err_res = err_guide(filename=args.file, file=original_content, errors=errors)
 
-    logger.info('suggested fixes:')
-    logger.info('\n'.join(err_res['fix']))
+    if not args.dont_print_fixes:
+        logger.info('suggested fixes:')
+        logger.info('\n'.join(err_res['fix']))
     fix_guide=guide_for_fixes(args)
     fix_res=fix_guide(filename=args.file, file=original_content, errors=errors, fixes=err_res['fix'])
     if not 'fixedfile' in fix_res:
@@ -199,6 +204,16 @@ def get_errors_from_mypy(args,override_file=None):
     logger.info(out)
     errors = [parse_line(z) for z in out.split('\n')]
     errors = list(filter(lambda x: x, errors))
+    if len(errors)==0:
+        return []
+    #Here we unite the errors from different lines
+    dfo=pandas.DataFrame(errors)
+    changed_message_df=dfo.groupby('Line Number')['Message'].agg(lambda x: '\n'.join(x))
+    df_first_row=dfo.groupby('Line Number').first()
+    df_first_row['Message'].update(changed_message_df)
+    df_first_row=df_first_row.reset_index()
+    errors= [dict(r[1]) for r in df_first_row.iterrows()]
+
     if args.max_errors:
         errors = errors[:args.max_errors]
     if args.error_categories:
@@ -228,6 +243,7 @@ if __name__ == '__main__':
     parser.add_argument('--dont_recheck', action='store_true', default=False, help='Dont recheck the file after the fixes')
     parser.add_argument('--debug', action='store_true', default=False, help='debug log level ')
     parser.add_argument('--auto-update', action='store_true', default=False, help='auto update if no errors ')
+    parser.add_argument('--dont-print-fixes', action='store_true', default=False, help='dont print fixes ')
 
     # Parse the arguments
     args = parser.parse_args()
