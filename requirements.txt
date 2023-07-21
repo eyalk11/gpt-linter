@@ -1,0 +1,2 @@
+guidance~=0.0.64
+colorama
