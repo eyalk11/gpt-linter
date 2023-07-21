@@ -1,9 +1,17 @@
 # mypy-gpt
-Solve mypy errors using guidance and espcially chatgpt.
+Solve mypy errors using [guidance](https://github.com/microsoft/guidance) and espcially chatgpt.
 We instruct it to solve for us those nagging typing issues!
 
-# Usage
+# Installation
+Just do clone and
+```
+pip install -r requirments.txt
+```
+It only really depends on [guidance](https://github.com/microsoft/guidance)
 
+needs `OPEN_AI_KEY` as enviornment varible.
+
+# Usage
 ```
 usage: main.py [-h] [--mypy_path MYPY_PATH] [--error_categories ERROR_CATEGORIES] [--max_errors MAX_ERRORS] [--proj-path PROJ_PATH] [--diff_file DIFF_FILE] [--new_file_path NEW_FILE_PATH]
                [--store_file] [--store_diff] [--dont_ask] [--model MODEL] [--max_fixes_tokens MAX_FIXES_TOKENS] [--max_file_tokens MAX_FILE_TOKENS]
