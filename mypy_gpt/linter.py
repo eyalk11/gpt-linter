@@ -1,31 +1,31 @@
+
 import logging
 import os
 import re
 import subprocess
 from abc import ABCMeta, abstractmethod
+from typing import List, Dict, Any, Optional
 
 import pandas
 from mypy_gpt.common import setup_logger
 
-logger=logging.getLogger('linter')
-logger.propagate=False
-
+logger = logging.getLogger('linter')
+logger.propagate = False
 
 
 class Linter(metaclass=ABCMeta):
     @abstractmethod
-    def run_checker(self, file, additional_args, program_path, proj_path):
+    def run_checker(self, file: str, additional_args: List[str], program_path: str, proj_path: str) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def parse_line(line):
+    def parse_line(line: str) -> Dict[str, Any]:
         pass
 
-    def get_issues(self,args, override_file=None):
-
+    def get_issues(self, args: Any, override_file: Optional[str] = None) -> List[Dict[str, Any]]:
         out = self.run_checker(args.file if override_file is None else override_file, args.mypy_args, args.mypy_path,
-                       args.proj_path)
+                               args.proj_path)
         logger.info(out)
         issues = [self.parse_line(z) for z in out.split('\n')]
         issues = list(filter(lambda x: x, issues))
@@ -47,14 +47,15 @@ class Linter(metaclass=ABCMeta):
 
 
 class MyPyLinter(Linter):
-    def __init__(self,debug):
-        setup_logger(logger,debug) #for now
-    def run_checker(self, file, additional_args, program_path, proj_path):
+    def __init__(self, debug: bool):
+        setup_logger(logger, debug)  # for now
+
+    def run_checker(self, file: str, additional_args: List[str], program_path: str, proj_path: str) -> str:
         # Construct the mypy command
-        command = [program_path] + additional_args.split() + [file]
+        command = [program_path] + additional_args + [file]
         logger.debug("Running mypy command: %s", command)
         # Run mypy command and capture the output
-        result = subprocess.run(command, capture_output=True, text=True,cwd=os.path.abspath(proj_path))
+        result: CompletedProcess[str] = subprocess.run(command, capture_output=True, text=True, cwd=os.path.abspath(proj_path))
         # Print the output
 
         # Decode the output from bytes to string
@@ -72,11 +73,12 @@ class MyPyLinter(Linter):
                     [@-~]   # Final byte
                 )
             ''', re.VERBOSE)
-        result = ansi_escape.sub('', output)
+        result: str = ansi_escape.sub('', output)
         # Print the output
-        return (result)
+        return result
+
     @staticmethod
-    def parse_line(line):
+    def parse_line(line: str) -> None:
         import re
         # Extracting message, type, and line number using regular expressions
         pattern = r'(.+):(\d+): (\w+): (.+) \[(.*)\]'

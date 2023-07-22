@@ -15,12 +15,12 @@ with pathlib.Path('requirements.txt').open() as requirements_txt:
 
 setup(
     name='mypy-gpt',
-    version='1.0.5',
+    version='1.0.6',
     packages=['mypy_gpt'],
     url='https://github.com/eyalk11/mypy-gpt',
     license=' AGPL-3.0 license',
     author='ekarni',
-    author_email='',
+    author_email='eyalk5@gmail.com',
     description=desc,
     long_description=long_desc,
     install_requires=install_requires

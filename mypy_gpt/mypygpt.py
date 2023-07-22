@@ -14,7 +14,7 @@ logger.propagate=False
 
 DEFAULT_MODEL = "gpt-3.5-turbo-16k"
 
-MYPYARGS = '--disallow-untyped-defs'
+MYPYARGS = ['--disallow-untyped-defs']
 
 older_path = r"c:\gitproj\Auto-GPT"
 DEFAULT_TOKENS =3600
@@ -97,7 +97,7 @@ class MyPyGpt:
             lines=self.original_content.split('\n')
             line_range= '\n'.join( lines[ max(ln-1-1,0) :min(ln-1+1,len(lines))])
 
-            issue[f"lines {ln-1} to {ln+1} in the file"]='\n'+line_range
+            issue[f"lines {ln-1} to {ln} in the file"]='\n'+line_range
 
             st='\n'.join(f"{k}: {v}" for k,v in issue.items())
 
@@ -119,6 +119,10 @@ class MyPyGpt:
             logger.info('no errors')
             return
 
+        self.try_to_solve_issues(errors)
+
+    def try_to_solve_issues(self,errors):
+        logger.info("trying to solve issues") 
         err_res = self.get_fixes(list(self.get_issues_string(errors)))
         new_content=self.get_new_content(err_res)
         if new_content is None:
@@ -131,21 +135,29 @@ class MyPyGpt:
         if self.args.diff_file:
             open(self.args.diff_file, 'wt').write(diff)
 
-        if not self.args.dont_recheck:
+        old_errors=errors
+        if not self.args.recheck_policy == 'none':
             errors = self.check_new_file(new_content)
 
-        print(colored_diff)
+         
+        print(diff if self.args.no_color else colored_diff)
         update=False
 
-        if not self.args.dont_ask:
+
+        if (len(errors) == 0 and self.args.auto_update == 'strict') \
+            or (self.args.auto_update == 'permissive' and len(old_errors) > len(errors)):
+                update=True
+
+        elif not self.args.dont_ask:
             print("do you want to override the file? (y/n)")
             if input() == 'y':
                 update=True
 
-        if (len(errors) == 0 and self.args.auto_update)  or update:
+        if update:
             open(self.args.file, 'wt').write(new_content)
-            if not self.args.dont_recheck and len(errors) >0 :
-                self.main()
+            self.original_content = new_content
+            if self.args.recheck_policy =='recheckandloop' and len(errors) >0:
+                self.try_to_solve_issues(errors)
 
     def check_new_file(self, new_content: str) -> List[Dict[str, Any]]:
         newfile: str = self.args.file.replace('.py', '.fixed.py')  # must be in the same folder sadly.
@@ -172,32 +184,38 @@ class MyPyGpt:
 
 def main() -> None:
     # Create the argument parser
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Run mypy on a Python file and use OpenAI GPT to fix the errors. It temporary generates file.fixed.py file to check for errors.')
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Run mypy on a Python file and use OpenAI GPT to fix the errors. It temporary generates file.fixed.py file to check for errors. You probably want to provide project so that mypy could resolve dependencies.')
     # Add the arguments
     parser.add_argument('file', help='Python file to run mypy on')
-    parser.add_argument('mypy_args', nargs='?', default=MYPYARGS, help='Additional options for mypy')
+    parser.add_argument('mypy_args', nargs=argparse.REMAINDER, help=f'Additional options for mypy after --. By default, uses {MYPYARGS}')
     parser.add_argument('--mypy-path', default='mypy', help='Path to mypy executable (default: "mypy")')
     parser.add_argument('--error_categories', action='store', help='Type of errors to process')
-    parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process')
-    parser.add_argument('--proj-path', default='.', help='Path to project')
-    parser.add_argument('--diff-file', action='store', help='Store diff in diff file')
-    parser.add_argument('--store-fixed-file', action='store_true', default=False, help='Keeps file.fixed.py')
+    parser.add_argument('--max_errors', action='store', type=int, default=10, help='Max number of errors to process per cycle')
+    parser.add_argument('-p','--proj-path', default='.', help='Path to project')
+    parser.add_argument('-d','--diff-file', action='store', help='Store diff in diff file')
+    parser.add_argument('-s','--store-fixed-file', action='store_true', default=False, help='Keeps file.fixed.py')
 
     parser.add_argument('--dont-ask', action='store_true', default=False,
                         help='Dont ask if to apply to changes. Useful for generting diff')
-    parser.add_argument('--model', default=DEFAULT_MODEL, help='Openai model to use')
+    parser.add_argument('-m','--model', default=DEFAULT_MODEL, help='Openai model to use')
     parser.add_argument('--max_tokens-per-fix', default=DEFAULT_TOKENS_PER_FIX, help='tokens to use for generating each fix')
     parser.add_argument('--temperature-per-fix', default=DEFAULT_TEMP_PER_FIX, help='temperature to use for fixes')
     parser.add_argument('--max_tokens-for-file', default=DEFAULT_TOKENS, help='tokens to use for file')
     parser.add_argument('--temperature-for-file', default=DEFAULT_TEMP, help='temperature to use for generating the file')
-    parser.add_argument('--dont_recheck', action='store_true', default=False,
-                        help='Dont recheck the file after the fixes')
+    parser.add_argument('-r','--recheck-policy', choices=['recheck','none','recheckandloop'],  default='recheckandloop',
+                        help='Recheck the file for issues before suggesting a fix. require to temporarily save file.fixed.py (has to be in the project). recheckandloop will go for another loop if done fixing and there are still errors.')
+
     parser.add_argument('--debug', action='store_true', default=False, help='debug log level ')
-    parser.add_argument('--auto-update', action='store_true', default=False, help='auto update if no errors ')
-    parser.add_argument('--dont-print-fixes', action='store_true', default=False, help='dont print fixes ')
+    parser.add_argument('-a','--auto-update', choices=['permissive','no','strict'], default='no', help='auto update file if no errors (if strict). On permissive policy it updates if the number of errors decreased. ')
+    parser.add_argument('-D','--dont-print-fixes', action='store_true', default=False, help='dont print fixes')
+    #add no colors option  
+    parser.add_argument('-N','--no_color', action='store_true', help='dont print color diff')
 
     # Parse the arguments
     args: argparse.Namespace = parser.parse_args()
+    if len(args.mypy_args) ==0:
+        args.mypy_args = MYPYARGS
+
     MyPyGpt(args).main()
 
 
