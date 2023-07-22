@@ -43,13 +43,8 @@ and reruns main if not all issues were resolved.
 If you want it to generate diff file, use: 
 
 ```
-python -m mypy_gpt --proj-path [PROJECT] --dont-ask  [PYFILE] > myfile.diff (if you don't mind colors)
+python -m mypy_gpt --proj-path [PROJECT] --no-color --dont-ask  [PYFILE] > myfile.diff 
 ```
-or 
-```
-python -m mypy_gpt --store-diff --proj-path [PROJECT] [PYFILE] --dont-ask
-```
-(it stores by default suggestion.diff)
 
 
 
