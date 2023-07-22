@@ -6,7 +6,7 @@ import logging
 import xml.etree.ElementTree as ET
 
 from mypy_gpt.common import setup_logger, generate_diff
-from mypy_gpt.guidance import Guidance
+from mypy_gpt.guide import Guidance
 from mypy_gpt.linter import MyPyLinter
 
 logger=logging.getLogger('mypygpt')
@@ -48,7 +48,6 @@ class MyPyGpt:
             if len(fixed)>0.5*len(self.original_content):
                 new_content=fixed
             else:
-                logger.error('cant continue')
                 return None
         try:
             new_content=ET.fromstring(new_content).text #remove the pythonfile element
@@ -63,6 +62,17 @@ class MyPyGpt:
 
         return new_content
 
+    def get_issues_string(self,issues):
+        for issue in issues:
+            ln=int(issue['Line Number'])
+            lines=self.original_content.split('\n')
+            lines= '\n'.join(lines[ max(ln-1-5,0) :min(ln-1+5,len(lines))])
+            issue[f"context(lines {ln-5} to {ln+5})"]=lines
+
+            st='\n'.join(f"{k}: {v}" for k,v in issue.items())
+
+            logger.debug(st)
+            yield st
 
     def main(self):
         setup_logger(logger,self.debug)
@@ -70,6 +80,7 @@ class MyPyGpt:
         if 'OPEN_AI_KEY' not in os.environ:
             logger.error('OPEN_AI_KEY not set')
             return
+        Guidance.set_key(self.args)
         logger.info("mypy output:")
 
         errors = self.linter.get_issues(self.args)
@@ -78,8 +89,12 @@ class MyPyGpt:
             logger.info('no errors')
             return
 
-        err_res = self.get_fixes(errors)
+        err_res = self.get_fixes(list(self.get_issues_string(errors)))
         new_content=self.get_new_content(err_res)
+        if new_content is None:
+            logger.error('cant continue')
+            return
+
 
         colored_diff,diff= generate_diff(self.original_content, new_content, self.args.file.replace("\\", '/'))
 

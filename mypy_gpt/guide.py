@@ -4,10 +4,13 @@ import guidance
 
 
 class Guidance:
+    @staticmethod
+    def set_key(args):
+        guidance.llm = guidance.llms.OpenAI(args.model, api_key=os.environ['OPEN_AI_KEY'])
+
 
     @staticmethod
     def guide_for_errors(args):
-        guidance.llm = guidance.llms.OpenAI(args.model, api_key=os.environ['OPEN_AI_KEY'])
 
         return  guidance('''
     {{#system~}}
@@ -29,7 +32,7 @@ class Guidance:
         {{gen 'fix' list_append=True temperature=0.7 max_tokens=%d}}
         {{~/assistant}}
         
-    {{/each~}}''' % (args.max_tokens_per_fix), log=True,caching=False)
+    {{/each~}}''' % (args.max_tokens_per_fix), log=True,caching=False)  # type: ignore
 
     @staticmethod
     def guide_for_fixes(args):
@@ -47,10 +50,10 @@ class Guidance:
             Those are the fixes
             {{#each fixes}}- {{this}}
                 {{/each~}}
-    
+            Make sure you apply all the corrections in the resulted file, even if the issues aren't clear.
             {{~/user}}
     
             {{#assistant~}}
             {{gen 'fixedfile' temperature=0.2 max_tokens=%d}}
             {{~/assistant~}}
-        ''' % (args.max_tokens_for_file),log=True ,caching=False)
+        ''' % (args.max_tokens_for_file),log=True ,caching=False)  # type: ignore
