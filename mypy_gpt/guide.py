@@ -12,7 +12,7 @@ class Guidance:
     @staticmethod
     def guide_for_errors(args):
 
-        return  guidance('''
+        text = '''
     {{#system~}}
         You are a helpful assistant. You will be given a file and an issue. You need to come up with fixes for the issue, even if it is a minor issue.
         {{~/system}}
@@ -26,17 +26,18 @@ class Guidance:
       {{~#user}}
       What is the fix for this issue on {{filename}}?
               {{this}}
-        Be short and preicise regarding the fix. Describe the change in the code but do not repeat much code.
+       Be sure to inspect the entire relevant function before suggesting a fix. 
+        Be short and precise regarding the fix, and refer to the change in code. In your answer, you shouldn't repeat instructions given to you,  and you shouldn't include more than 5 lines of code.
       {{~/user}}
       {{#assistant~}}
-        {{gen 'fix' list_append=True temperature=0.7 max_tokens=%d}}
+        {{gen 'fix' list_append=True temperature=%d max_tokens=%d}}
         {{~/assistant}}
-        
-    {{/each~}}''' % (args.max_tokens_per_fix), log=True,caching=False)  # type: ignore
+    {{/each~}}''' % (args.temperature_per_fix, args.max_tokens_per_fix)
+        return  guidance(text, log=True, caching=False)  # type: ignore
 
     @staticmethod
     def guide_for_fixes(args):
-        return guidance('''
+        text = '''
             {{#system~}}
             You are a helpful assistant. You will be given a list of corrections to do in a file, and will update the file accordingly. 
             Reply only with xml that has the following format:  
@@ -54,6 +55,7 @@ class Guidance:
             {{~/user}}
     
             {{#assistant~}}
-            {{gen 'fixedfile' temperature=0.2 max_tokens=%d}}
+            {{gen 'fixedfile' temperature=%d max_tokens=%d}}
             {{~/assistant~}}
-        ''' % (args.max_tokens_for_file),log=True ,caching=False)  # type: ignore
+        '''
+        return guidance(text % (args.temperature_for_file , args.max_tokens_for_file), log=True, caching=False)  # type: ignore
