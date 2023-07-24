@@ -5,12 +5,12 @@ import xml
 import logging
 import xml.etree.ElementTree as ET
 
-from mypy_gpt.common import setup_logger, generate_diff
-from mypy_gpt.guide import Guidance
-from mypy_gpt.linter import MyPyLinter
+from gpt_linter.common import generate_diff
+from gpt_linter.guide import Guidance
+from gpt_linter.linter import MyPyLinter
 
-logger=logging.getLogger('mypygpt')
-logger.propagate=False
+from gpt_linter.logger import Logger
+logger=Logger()
 
 DEFAULT_MODEL = "gpt-3.5-turbo-16k"
 
@@ -25,7 +25,7 @@ import argparse
 from typing import List, Dict, Any, Optional, Iterator
 
 
-class MyPyGpt:
+class GPTLinter:
     def __init__(self,args: argparse.Namespace):
         #move all the attributes of args to local variables
         self.args = args
@@ -33,7 +33,7 @@ class MyPyGpt:
         self.original_content = open(self.file, 'rt').read()
 
         self.debug = args.debug
-        self.linter = MyPyLinter(args.debug)
+        self.linter = MyPyLinter()
 
     def get_new_content(self,err_res: Dict[str, Any]) -> Optional[str]:
         fix_guide= Guidance.guide_for_fixes(self.args)
@@ -105,7 +105,7 @@ class MyPyGpt:
             yield st
 
     def main(self) -> None:
-        setup_logger(logger,self.debug)
+        logger.setup_logger(self.debug)
 
         if 'OPEN_AI_KEY' not in os.environ:
             logger.error('OPEN_AI_KEY not set')
@@ -216,7 +216,7 @@ def main() -> None:
     if len(args.mypy_args) ==0:
         args.mypy_args = MYPYARGS
 
-    MyPyGpt(args).main()
+    GPTLinter(args).main()
 
 
 if __name__ == '__main__':

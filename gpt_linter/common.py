@@ -4,14 +4,6 @@ import logging
 import os
 from typing import Tuple, Iterable
 
-def setup_logger(logger: logging.Logger, debug: bool) -> None:
-    logger.setLevel(logging.DEBUG if debug else logging.INFO)
-    log_format = "%(levelname)s - %(message)s"
-    formatter = logging.Formatter(log_format)
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    logger.handlers = [ch]
-
 def generate_diff(original_content: str, new_content: str, path: str) -> Tuple[str, str]:
     try:
         from colorama import Fore, init

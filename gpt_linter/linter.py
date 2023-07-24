@@ -1,17 +1,15 @@
 
-import logging
 import os
 import re
 import subprocess
 from abc import ABCMeta, abstractmethod
 from typing import List, Dict, Any, Optional
+from subprocess import CompletedProcess
 
 import pandas
-from mypy_gpt.common import setup_logger
+from gpt_linter.logger import Logger 
 
-logger = logging.getLogger('linter')
-logger.propagate = False
-
+logger = Logger()
 
 class Linter(metaclass=ABCMeta):
     @abstractmethod
@@ -47,8 +45,6 @@ class Linter(metaclass=ABCMeta):
 
 
 class MyPyLinter(Linter):
-    def __init__(self, debug: bool):
-        setup_logger(logger, debug)  # for now
 
     def run_checker(self, file: str, additional_args: List[str], program_path: str, proj_path: str) -> str:
         # Construct the mypy command
@@ -73,14 +69,13 @@ class MyPyLinter(Linter):
                     [@-~]   # Final byte
                 )
             ''', re.VERBOSE)
-        result: str = ansi_escape.sub('', output)
+        clean_output: str = ansi_escape.sub('', output)
         # Print the output
-        return result
+        return clean_output
 
     @staticmethod
-    def parse_line(line: str) -> None:
+    def parse_line(line: str) -> Dict[str, Any]:
         import re
-        # Extracting message, type, and line number using regular expressions
         pattern = r'(.+):(\d+): (\w+): (.+) \[(.*)\]'
         match = re.match(pattern, line)
         if not match:
@@ -95,3 +90,6 @@ class MyPyLinter(Linter):
             return {"Line Number": linenumber, "Error Type": error_type, "Message": message, "Category": sub_type}
         else:
             logger.debug(("No match found.", line))
+
+            return {"Line Number": "", "Error Type": "", "Message": "", "Category": ""}
+
