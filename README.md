@@ -3,6 +3,11 @@ Solve linter errors using [guidance](https://github.com/microsoft/guidance) and 
 It runs mypy on targeted file and then uses gpt to try to fix the issues (espcially good for minor nagging issues).
 Displays a diff file for the required changes and ask you if you want to apply. 
 
+# Demo
+
+https://www.youtube.com/watch?v=dgRa33epPQg
+
+
 # Installation
 ```
 pip install  gpt-linter
